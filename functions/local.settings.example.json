@@ -2,6 +2,7 @@
   "IsEncrypted": false,
   "Values": {
     "FUNCTIONS_WORKER_RUNTIME": "python",
-    "AzureWebJobsStorage": ""
+    "AzureWebJobsStorage": "",
+    "DB_URL": "mssql+pyodbc://sa:[PASSWORD]@127.0.0.1:1433/bookish?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
   }
 }
