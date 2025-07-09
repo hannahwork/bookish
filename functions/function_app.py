@@ -20,8 +20,8 @@ def _calculate_age(dob: date) -> int:
 def http_get(req: func.HttpRequest) -> func.HttpResponse:
     name = req.params.get("name", "World")
     with SessionLocal() as session:
-        selection = select(User).where(User.name == name)
-        user = session.execute(selection).scalar_one_or_none()
+        selection = select(User).where(User.name == name).order_by(User.id.desc())
+        user = session.execute(selection).scalar()
         if user and user.date_of_birth:
             age = _calculate_age(user.date_of_birth)
             return func.HttpResponse(f"Hello, {name}! You are {age} years old!")
