@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 import os
 from datetime import date
-from models.models import Base, User
+from models.models import Base, User, Book
 
 app = func.FunctionApp()
 
@@ -54,3 +54,33 @@ def http_post(req: func.HttpRequest) -> func.HttpResponse:
             "Invalid JSON in request body",
             status_code=400
         )
+
+@app.route(route="all-books", methods=["GET"])
+def all_books(req: func.HttpRequest) -> func.HttpResponse:
+    with SessionLocal() as session:
+        view = select(Book).order_by(Book.title.asc())
+        books = session.execute(view).scalars().all()
+
+        books_list = [{"Title": book.title, "Author": book.author} for book in books]
+        import json
+    return func.HttpResponse(json.dumps(books_list), mimetype="application/json", status_code=200)
+
+@app.route(route="all-books", methods=["POST"])
+def create_book(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        req_body = req.get_json()
+        title = req_body.get('title')
+        author = req_body.get('author')
+        copies = req_body.get('copies')
+    except ValueError:
+        return func.HttpResponse("Invalid JSON in request body", status_code=400)
+
+    if not all([title, author]):
+        return func.HttpResponse("Title and author are required", status_code=400)
+    with SessionLocal() as session:
+        book = Book(title=title, author=author, copies=copies)
+        session.add(book)
+        session.commit()
+
+    logging.info(f"Processing POST request. Title: {title}")
+    return func.HttpResponse(f"Added, {copies} copies of {title} by {author}.", status_code=200)
