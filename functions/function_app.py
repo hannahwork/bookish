@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 import os
 from datetime import date
-from models.models import Base, User
+from models.models import Base, User, Book
 
 app = func.FunctionApp()
 
@@ -54,3 +54,13 @@ def http_post(req: func.HttpRequest) -> func.HttpResponse:
             "Invalid JSON in request body",
             status_code=400
         )
+
+@app.route(route="all-books", methods=["GET"])
+def all_books(req: func.HttpRequest) -> func.HttpResponse:
+    with SessionLocal() as session:
+        view = select(Book).order_by(Book.title.asc())
+        books = session.execute(view).scalars().all()
+
+        books_list = [{"Title": book.title, "Author": book.author} for book in books]
+        import json
+    return func.HttpResponse(json.dumps(books_list), mimetype="application/json", status_code=200)
