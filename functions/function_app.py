@@ -4,7 +4,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 import os
 from datetime import date
-from models.models import Base, User, Book
+from models.models import Base, User, Book, BookCopy
+import json
 
 app = func.FunctionApp()
 
@@ -55,17 +56,16 @@ def http_post(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400
         )
 
-@app.route(route="all-books", methods=["GET"])
+@app.route(route="books", methods=["GET"])
 def all_books(req: func.HttpRequest) -> func.HttpResponse:
     with SessionLocal() as session:
         view = select(Book).order_by(Book.title.asc())
         books = session.execute(view).scalars().all()
 
         books_list = [{"Title": book.title, "Author": book.author} for book in books]
-        import json
     return func.HttpResponse(json.dumps(books_list), mimetype="application/json", status_code=200)
 
-@app.route(route="all-books", methods=["POST"])
+@app.route(route="books", methods=["POST"])
 def create_book(req: func.HttpRequest) -> func.HttpResponse:
     try:
         req_body = req.get_json()
@@ -84,3 +84,24 @@ def create_book(req: func.HttpRequest) -> func.HttpResponse:
 
     logging.info(f"Processing POST request. Title: {title}")
     return func.HttpResponse(f"Added, {copies} copies of {title} by {author}.", status_code=200)
+
+@app.route(route="books/{book_id}", methods=["GET"])
+def get_books_by_id(req: func.HttpRequest) -> func.HttpResponse:
+    book_id = req.route_params.get("book_id")
+
+    with SessionLocal() as session:
+        book = session.get(Book, book_id)
+        if not book:
+            return func.HttpResponse("Book not found", status_code=404)
+
+        copies = session.query(BookCopy).filter(BookCopy.book_id == book_id).all()
+        available_copies = [copy for copy in copies if copy.available]
+        available_number_of_copies = len(available_copies)
+
+        result = {
+            "id": book_id,
+            "title": book.title,
+            "author": book.author,
+            "available": available_number_of_copies
+        }
+    return func.HttpResponse(json.dumps(result), mimetype="application/json", status_code=200)
