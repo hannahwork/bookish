@@ -6,114 +6,12 @@ import os
 from datetime import date
 from models.models import Base, User, Book, BookCopy
 import json
+from books_controller import book_endpoints
+from users_controller import user_endpoints
 
 app = func.FunctionApp()
+book_endpoints(app)
+user_endpoints(app)
 
 engine = create_engine(os.environ["DB_URL"], echo=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-
-# Helper to calculate age from a date of birth
-def _calculate_age(dob: date) -> int:
-    today = date.today()
-    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-
-@app.route(route="httpget", methods=["GET"])
-def http_get(req: func.HttpRequest) -> func.HttpResponse:
-    name = req.params.get("name", "World")
-    with SessionLocal() as session:
-        selection = select(User).where(User.name == name).order_by(User.id.desc())
-        user = session.execute(selection).scalar()
-        if user and user.date_of_birth:
-            age = _calculate_age(user.date_of_birth)
-            return func.HttpResponse(f"Hello, {name}! You are {age} years old!")
-        return func.HttpResponse(f"Hello, {name}! User record not found.")
-
-@app.route(route="httppost", methods=["POST"])
-def http_post(req: func.HttpRequest) -> func.HttpResponse:
-    try:
-        req_body = req.get_json()
-        name = req_body.get('name')
-        dob_str = req_body.get('dob')
-
-        try:
-            dob = date.fromisoformat(dob_str)
-        except Exception:
-            return func.HttpResponse("'dob' must be in YYYY-MM-DD format", status_code=400)
-
-        with SessionLocal() as session:
-            session.add(User(name=name, date_of_birth=dob))
-            session.commit()
-
-        logging.info(f"Processing POST request. Name: {name}")
-
-        if name and isinstance(name, str):
-            age = _calculate_age(dob)
-            return func.HttpResponse(f"Hello, {name}! You are {age} years old!")
-        return func.HttpResponse("Please provide both 'name' and 'dob' in the request body.", status_code=400)
-    except ValueError:
-        return func.HttpResponse(
-            "Invalid JSON in request body",
-            status_code=400
-        )
-
-@app.route(route="books", methods=["GET"])
-def all_books(req: func.HttpRequest) -> func.HttpResponse:
-    with SessionLocal() as session:
-        view = select(Book).order_by(Book.title.asc())
-        books = session.execute(view).scalars().all()
-
-        books_list = [{"Title": book.title, "Author": book.author} for book in books]
-    return func.HttpResponse(json.dumps(books_list), mimetype="application/json", status_code=200)
-
-
-@app.route(route="books", methods=["POST"])
-def create_book(req: func.HttpRequest) -> func.HttpResponse:
-    try:
-        req_body = req.get_json()
-        title = req_body.get('title')
-        author = req_body.get('author')
-        copies = int(req_body.get('copies', 1))
-
-    except ValueError:
-        return func.HttpResponse("Invalid JSON in request body", status_code=400)
-
-    if not all([title, author, copies]):
-        return func.HttpResponse("Title, author and copies are required", status_code=400)
-
-    with SessionLocal() as session:
-        new_book = Book(title=title, author=author, copies=copies)
-        session.add(new_book)
-        session.flush()
-
-        for i in range(copies):
-            session.add(BookCopy(book_id=new_book.id, available=True))
-
-        session.commit()
-
-
-    return func.HttpResponse(f"Added, {copies} available copies of {title} by {author}.", status_code=200)
-
-@app.route(route="books/{book_id}", methods=["GET"])
-def get_books_by_id(req: func.HttpRequest) -> func.HttpResponse:
-    book_id = req.route_params.get("book_id")
-    try:
-        book_id = int(book_id)
-    except (ValueError, TypeError):
-        return func.HttpResponse("Invalid Book ID", status_code=400)
-
-    with SessionLocal() as session:
-        book = session.get(Book, book_id)
-        if not book:
-            return func.HttpResponse("Book not found", status_code=404)
-
-        copies = session.query(BookCopy).filter(BookCopy.book_id == book_id).all()
-        available_copies =len( [copy for copy in copies if copy.available])
-
-        result = {
-            "id": book_id,
-            "title": book.title,
-            "author": book.author,
-            "available": available_copies,
-            "total_copies": len(copies)
-        }
-    return func.HttpResponse(json.dumps(result), mimetype="application/json", status_code=200)
