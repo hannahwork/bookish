@@ -14,7 +14,7 @@ def user_endpoints(app: func.FunctionApp):
         today = date.today()
         return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
-    @app.route(route="httpget", methods=["GET"])
+    @app.route(route="users", methods=["GET"])
     def http_get(req: func.HttpRequest) -> func.HttpResponse:
         name = req.params.get("name", "World")
         with SessionLocal() as session:
@@ -25,7 +25,7 @@ def user_endpoints(app: func.FunctionApp):
                 return func.HttpResponse(f"Hello, {name}! You are {age} years old!")
             return func.HttpResponse(f"Hello, {name}! User record not found.")
 
-    @app.route(route="httppost", methods=["POST"])
+    @app.route(route="users", methods=["POST"])
     def http_post(req: func.HttpRequest) -> func.HttpResponse:
         try:
             req_body = req.get_json()

@@ -45,4 +45,5 @@ class Borrow(Base):
 
     user = relationship("User", back_populates="borrows")
     copy = relationship("BookCopy", back_populates="borrow")
+    book = relationship("Book")
 
